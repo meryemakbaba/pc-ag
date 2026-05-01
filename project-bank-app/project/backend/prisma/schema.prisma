@@ -1,0 +1,31 @@
+// Prisma İstemcisi
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Veritabanı Bağlantısı (MySQL olarak değiştirdik)
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id           Int           @id @default(autoincrement())
+  cardNumber   String        @unique // TC Kimlik yerine Kart Numarası getirdik
+  password     String
+  firstName    String
+  lastName     String
+  balance      Float         @default(0.0)
+  transactions Transaction[] 
+  createdAt    DateTime      @default(now())
+}
+
+// 2. Tablo: Hesap Hareketleri (Transferler)
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  amount      Float
+  type        String   // "DEPOSIT" (Yatırma), "WITHDRAW" (Çekme), "TRANSFER"
+  description String?  // Açıklama (İsteğe bağlı)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}
