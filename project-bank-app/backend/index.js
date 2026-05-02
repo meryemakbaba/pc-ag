@@ -55,6 +55,59 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// --- YENİ: PARA İŞLEMLERİ (Yatırma/Çekme/Transfer) ---
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const { userId, amount, type, title } = req.body;
+
+    const transaction = await prisma.transaction.create({
+      data: {
+        amount: parseFloat(amount),
+        type: type.toUpperCase(),
+        description: title,
+        userId: parseInt(userId)
+      }
+    });
+
+    // Bakiyeyi güncelle ve GÜNCEL KULLANICIYI döndür
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(userId) },
+      data: { balance: { increment: type === 'deposit' ? parseFloat(amount) : -parseFloat(amount) } }
+    });
+
+    res.json({ success: true, newBalance: updatedUser.balance, transaction });
+  } catch (error) {
+    res.status(500).json({ error: "İşlem gerçekleştirilemedi." });
+  }
+});
+
+// --- YENİ: BORÇ ÖDEME ROTASI ---
+app.post('/api/pay-debt', async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+
+    // Bakiyeyi düşür ve güncel kullanıcıyı al
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(userId) },
+      data: { balance: { decrement: parseFloat(amount) } }
+    });
+
+    await prisma.transaction.create({
+      data: {
+        amount: parseFloat(amount),
+        type: 'WITHDRAW',
+        description: 'Kredi Kartı Borç Ödemesi',
+        userId: parseInt(userId)
+      }
+    });
+
+    // BURASI KRİTİK: Güncel bakiyeyi frontend'e gönderiyoruz
+    res.json({ success: true, newBalance: updatedUser.balance });
+  } catch (error) {
+    res.status(500).json({ error: "Borç ödemesi başarısız." });
+  }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Arka plan sunucusu çalışıyor: http://localhost:${PORT}`);

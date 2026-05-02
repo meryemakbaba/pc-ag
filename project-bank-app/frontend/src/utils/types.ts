@@ -1,8 +1,9 @@
 export interface Transaction {
+  title: any;
   id: string;
   type: 'deposit' | 'withdrawal';
   amount: number;
-  isFake: boolean;
+  isFake?: boolean;
   date: string;
 }
 

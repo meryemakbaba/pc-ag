@@ -10,6 +10,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "express": "^5.1.0"
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.6",
+    "express": "^5.1.0",
+    "lucide-react": "^1.14.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
   }
 }

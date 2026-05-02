@@ -10,13 +10,13 @@ interface SelectServiceProps {
 
 const SelectService: React.FC<SelectServiceProps> = ({ onSelect, onLogout, username }) => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-white">
       <div className="w-full max-w-4xl px-4">
-        <div className="bg-gray-800 bg-opacity-50 backdrop-blur-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-700">
+        <div className="bg-gray-200 bg-opacity-50 backdrop-blur-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
           {/* Header */}
-          <div className="p-6 text-center border-b border-gray-700">
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Hoşgeldiniz, {username}</h1>
-            <p className="text-gray-400 mt-1">Lütfen bankacılık hizmetinizi seçiniz</p>
+          <div className="p-6 text-center border-b border-gray-300">
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-800">Hoşgeldiniz, {username}</h1>
+            <p className="text-gray-500 mt-1">Lütfen bankacılık hizmetinizi seçiniz</p>
           </div>
 
           {/* Service selection */}

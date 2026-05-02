@@ -9,12 +9,18 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [currentView, setCurrentView] = useState<'select' | 'dashboard' | 'atm'>('select');
+  const [userCardNumber, setUserCardNumber] = useState<string>('');
+  // App.tsx içindeki diğer state'lerin yanına ekle
+const [currentUser, setCurrentUser] = useState<any>(null); // Giriş yapan kullanıcının tüm verisi burada duracak
 
-  const handleLogin = (name: string) => {
-    setUsername(name);
-    setIsLoggedIn(true);
-    setCurrentView('select');
-  };
+  // handleLogin fonksiyonunu bu şekilde revize et
+const handleLogin = (userObject: any) => { 
+  setCurrentUser(userObject); // Kullanıcı objesini (id, firstName, balance vb.) kaydediyoruz
+  setUsername(userObject.firstName);
+  setUserCardNumber(userObject.cardNumber);
+  setIsLoggedIn(true);
+  setCurrentView('select');
+};
 
   const handleLogout = () => {
     setIsLoggedIn(false);
@@ -46,8 +52,10 @@ function App() {
             {currentView === 'dashboard' && (
               <Dashboard 
                 onLogout={handleLogout} 
+                user={currentUser}
                 username={username} 
                 onSelectService={handleBackToSelect}
+                cardNumber={userCardNumber}
               />
             )}
             {currentView === 'atm' && (
