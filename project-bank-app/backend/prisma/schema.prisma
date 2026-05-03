@@ -15,6 +15,7 @@ model User {
   firstName    String
   lastName     String
   balance      Float         @default(0.0)
+  creditDebt   Float         @default(4500.0)
   transactions Transaction[] 
   createdAt    DateTime      @default(now())
 }

@@ -63,6 +63,7 @@ const handleLogin = (userObject: any) => {
                 onLogout={handleLogout} 
                 username={username}
                 onSelectService={handleBackToSelect}
+                user={currentUser}
               />
             )}
           </>

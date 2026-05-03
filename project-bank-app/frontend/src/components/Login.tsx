@@ -90,8 +90,8 @@ const validateForm = (type: 'login' | 'register' | 'forgot'): boolean => {
         isValid = false;
       }
 
-      // KART NUMARASI: Boşlukları ve rakam dışı karakterleri temizle, fazlalığı kes
-      const cardDigits = formData.cardNumber.replace(/\D/g, '').slice(0, 16);
+      // KART NUMARASI: Boşlukları ve rakam dışı karakterleri temizle
+      const cardDigits = formData.cardNumber.replace(/\D/g, '');
       if (cardDigits.length !== 16) {
         currentErrors.cardNumber = `Kart numarası 16 haneli olmalıdır`;
         isValid = false;
@@ -113,7 +113,7 @@ const validateForm = (type: 'login' | 'register' | 'forgot'): boolean => {
       }
 
     } else if (type === 'login') {
-      const cardDigits = formData.cardNumber.replace(/\D/g, '').slice(0, 16);
+      const cardDigits = formData.cardNumber.replace(/\D/g, '');
       if (cardDigits.length !== 16) {
         currentErrors.cardNumber = 'Kart numarası 16 haneli olmalıdır';
         isValid = false;
@@ -298,6 +298,7 @@ return (
                   value={formatCardNumber(formData.cardNumber)}
                   onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })}
                   placeholder="16 haneli kart numaranızı giriniz"
+                  maxLength={19}
                   required
                   error={errors.cardNumber}
                 />
@@ -400,6 +401,7 @@ return (
                       value={formatCardNumber(formData.cardNumber)}
                       onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })}
                       placeholder="16 Haneli No"
+                      maxLength={19}
                       required
                       error={errors.cardNumber}
                     />

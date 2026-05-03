@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogOut, DollarSign, ChevronDown, ChevronUp, CreditCard, Plus, LayoutGrid } from 'lucide-react';
 import { useBank } from '../contexts/BankContext';
 import Button from './shared/Button';
@@ -7,22 +7,40 @@ interface ATMInterfaceProps {
   onLogout: () => void;
   username: string;
   onSelectService: () => void;
+  user?: any;
 }
 
-const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelectService }) => {
+const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelectService, user }) => {
   const {
     balance,
+    creditCardDebt,
     deposit,
     withdraw,
+    payDebt,
+    setInitialData,
   } = useBank();
+
+  // Kullanıcı değişince DB'den bakiye ve borcu çek
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(`http://localhost:3000/api/transactions/${user?.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setInitialData(data.balance, data.creditDebt, data.transactions);
+        }
+      } catch (err) {
+        console.error('ATM: veri çekilemedi', err);
+      }
+    };
+    if (user?.id) fetchData();
+  }, [user?.id]);
 
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [activeSection, setActiveSection] = useState<'none' | 'withdraw' | 'deposit' | 'debt'>('none');
-  const [debt, setDebt] = useState<number>(1200);
 
-  const predefinedAmounts = [20, 50, 100, 200, 500, 1000];
 
   const toggleSection = (section: typeof activeSection) => {
     setError('');
@@ -31,7 +49,12 @@ const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelec
     setActiveSection((prev) => (prev === section ? 'none' : section));
   };
 
-  const handleTransaction = (
+  const predefinedAmounts = [20, 50, 100, 200, 500, 1000];
+
+
+
+
+  const handleTransaction = async (
     type: 'deposit' | 'withdrawal' | 'debt' | 'increaseDebt',
     transactionAmount: number
   ) => {
@@ -48,27 +71,61 @@ const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelec
       return;
     }
 
-    if (type === 'deposit') {
-      deposit(transactionAmount);
-      setSuccess(`Başarılı şekilde bakiye yatırıldı: ${transactionAmount} ₺`);
-    } else if (type === 'withdrawal') {
-      withdraw(transactionAmount);
-      setSuccess(`Başarılı şekilde bakiye çekildi: ${transactionAmount} ₺`);
-    } else if (type === 'debt') {
+    if (type === 'debt') {
       if (transactionAmount > balance) {
         setError('Yeterli bakiyeniz yok');
         return;
       }
-      if (transactionAmount > debt) {
+      if (transactionAmount > creditCardDebt) {
         setError('Borç tutarından fazla ödeme yapamazsınız');
         return;
       }
-      withdraw(transactionAmount);
-      setDebt((prev) => prev - transactionAmount);
-      setSuccess(`Kredi kartı borcu ödendi: ${transactionAmount} ₺`);
-    } else if (type === 'increaseDebt') {
-      setDebt((prev) => prev + transactionAmount);
-      setSuccess(`Borç artırıldı: ${transactionAmount} ₺`);
+    }
+
+    if (type === 'increaseDebt') {
+      setSuccess(`Borç bilgisi güncellendi`);
+      setAmount('');
+      return;
+    }
+
+    let apiTitle = type === 'deposit' ? 'Para Yatırma (ATM)' : type === 'withdrawal' ? 'Para Çekme (ATM)' : 'Borç Ödeme (ATM)';
+
+    try {
+      if (type === 'debt') {
+        const response = await fetch('http://localhost:3000/api/pay-debt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.id, amount: transactionAmount }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          payDebt(transactionAmount, data.newCreditDebt);
+          setSuccess(`Kredi kartı borcu ödendi: ${transactionAmount} ₺`);
+        } else {
+          const err = await response.json();
+          setError(err.error || 'İşlem sunucu tarafından onaylanmadı.');
+        }
+      } else {
+        const apiType = type.toUpperCase();
+        const response = await fetch('http://localhost:3000/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.id, type: apiType, amount: transactionAmount, title: apiTitle }),
+        });
+        if (response.ok) {
+          if (type === 'deposit') {
+            deposit(transactionAmount);
+            setSuccess(`Başarılı şekilde bakiye yatırıldı: ${transactionAmount} ₺`);
+          } else {
+            withdraw(transactionAmount);
+            setSuccess(`Başarılı şekilde bakiye çekildi: ${transactionAmount} ₺`);
+          }
+        } else {
+          setError('İşlem sunucu tarafından onaylanmadı.');
+        }
+      }
+    } catch (err) {
+      setError('Sunucu bağlantı hatası.');
     }
 
     setAmount('');
@@ -89,139 +146,153 @@ const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelec
   const formattedDebt = new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
-  }).format(debt);
+  }).format(creditCardDebt);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-gray-800 bg-opacity-50 backdrop-blur-lg shadow-lg border-b border-gray-700">
-        <div className="container mx-auto px-4 py-4">
+    <div className="min-h-screen flex flex-col bg-white">
+      <header className="bg-gray-200 bg-opacity-30 backdrop-blur-xl sticky top-0 z-50 border-b border-gray-300/50 shadow-sm">
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-white" />
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-900 flex items-center justify-center shadow-lg">
+                <DollarSign className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">ATM Servisi</h1>
-                <p className="text-xs text-gray-400">Hoşgeldiniz, {username}</p>
+                <h1 className="text-xl font-bold text-blue-950 tracking-tight">ATM Servisi</h1>
+                <p className="text-[10px] uppercase tracking-widest text-blue-800 font-bold opacity-70">Hoşgeldiniz, {username}</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-4">
               <Button
                 text="Hizmet Seç"
                 onClick={onSelectService}
-                variant="primary"
-                icon={<LayoutGrid size={16} />}
-                className="text-sm py-2 px-4"
-              />
-              <Button
-                text="ATM'den Çık"
-                onClick={onLogout}
                 variant="secondary"
-                icon={<LogOut size={16} />}
-                className="text-sm py-2 px-4"
+                icon={<LayoutGrid size={16} />}
+                className="rounded-full shadow-sm"
               />
+              <button
+                onClick={onLogout}
+                className="p-2.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100"
+              >
+                <LogOut size={20} />
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="flex-grow container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <div className="bg-gray-800 bg-opacity-50 backdrop-blur-lg rounded-xl border border-gray-700 shadow-xl p-6">
-            <h2 className="text-lg font-semibold text-gray-300 mb-2">Güncel Bakiye</h2>
-            <p className="text-4xl font-bold text-white">{formattedBalance}</p>
+      <main className="flex-grow container mx-auto px-4 py-12 max-w-4xl">
+        <div className="space-y-8">
+          {/* Güncel Bakiye */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-[3rem] border border-white shadow-2xl shadow-blue-900/5 overflow-hidden">
+            <div className="flex flex-col items-center justify-center p-12 text-center">
+              <p className="text-gray-400 font-bold text-sm uppercase tracking-widest mb-2">Güncel Bakiye</p>
+              <h2 className="text-6xl font-black text-blue-950 tracking-tighter">
+                {formattedBalance}
+              </h2>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          {/* İşlem Butonları */}
+          <div className="flex flex-wrap justify-center gap-4">
             <Button text="Para Çek" onClick={() => toggleSection('withdraw')} icon={<ChevronDown size={16} />} />
             <Button text="Para Yatır" onClick={() => toggleSection('deposit')} icon={<ChevronUp size={16} />} />
             <Button text="Borç Öde" onClick={() => toggleSection('debt')} icon={<CreditCard size={16} />} />
           </div>
 
+          {/* Para Çekme / Yatırma */}
           {(activeSection === 'withdraw' || activeSection === 'deposit') && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-xl shadow-blue-900/5 border border-white mx-auto max-w-2xl animate-fade-in">
+              <h3 className="text-lg font-bold text-blue-950 mb-6 text-center">
+                {activeSection === 'deposit' ? 'Para Yatır' : 'Para Çek'}
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 {predefinedAmounts.map((amt) => (
                   <button
                     key={`${activeSection}-${amt}`}
                     onClick={() =>
                       handleTransaction(activeSection === 'deposit' ? 'deposit' : 'withdrawal', amt)
                     }
-                    className={`p-4 rounded-lg border transition-all duration-200 flex items-center justify-center space-x-2
+                    className={`p-4 rounded-2xl border transition-all duration-200 flex items-center justify-center space-x-2 font-bold shadow-sm hover:shadow-md
                       ${activeSection === 'deposit'
-                        ? 'bg-green-900/20 border-green-700/30 hover:bg-green-900/30'
-                        : 'bg-red-900/20 border-red-700/30 hover:bg-red-900/30'}`}
+                        ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:scale-[1.02]'
+                        : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:scale-[1.02]'}`}
                   >
-                    {activeSection === 'deposit' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {activeSection === 'deposit' ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                     <span>{amt} ₺</span>
                   </button>
                 ))}
               </div>
-              <div className="flex items-center space-x-4 mt-4">
+              <div className="flex flex-col md:flex-row items-center gap-4">
                 <input
                   type="text"
                   value={amount}
                   onChange={handleAmountChange}
-                  placeholder="Tutar giriniz"
-                  className="flex-1 p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Farklı Tutar Giriniz"
+                  className="w-full md:flex-1 p-4 rounded-2xl bg-gray-50 border-none text-blue-950 font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
                 <button
                   onClick={() => handleTransaction(activeSection === 'deposit' ? 'deposit' : 'withdrawal', Number(amount))}
-                  className="p-3 rounded-lg bg-gray-600 hover:bg-gray-500 text-white border border-gray-400"
+                  className="w-full md:w-auto px-8 py-4 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95"
                 >
-                  İşlemi Gerçekleştir
-                </button>
-              </div>
-            </>
-          )}
-
-          {activeSection === 'debt' && (
-            <div className="space-y-4">
-              <div className="bg-gray-800 bg-opacity-40 border border-blue-800/40 rounded-lg p-4">
-                <h3 className="text-sm text-gray-400 mb-1">Kalan Borcunuz</h3>
-                <p className="text-2xl font-semibold text-blue-300">{formattedDebt}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {predefinedAmounts.map((amt) => (
-                  <button
-                    key={`debt-${amt}`}
-                    onClick={() => handleTransaction('debt', amt)}
-                    className="p-4 rounded-lg border transition-all duration-200 flex items-center justify-center space-x-2
-                      bg-blue-900/20 border-blue-700/30 hover:bg-blue-900/30"
-                  >
-                    <CreditCard className="w-4 h-4" />
-                    <span>{amt} ₺</span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center space-x-4">
-                <input
-                  type="text"
-                  value={amount}
-                  onChange={handleAmountChange}
-                  placeholder="Tutar giriniz"
-                  className="flex-1 p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <button
-                  onClick={() => handleTransaction('debt', Number(amount))}
-                  className="p-3 rounded-lg bg-gray-600 hover:bg-gray-500 text-white border border-gray-400"
-                >
-                  İşlemi Gerçekleştir
+                  Onayla
                 </button>
               </div>
             </div>
           )}
 
+          {/* Borç Ödeme */}
+          {activeSection === 'debt' && (
+            <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[3rem] shadow-xl shadow-blue-900/5 border border-white mx-auto max-w-2xl animate-fade-in">
+               <h3 className="text-lg font-bold text-blue-950 mb-6 text-center flex items-center justify-center">
+                 <CreditCard className="mr-2 text-blue-600" size={20} /> Borç Öde
+               </h3>
+              <div className="bg-gray-50 rounded-2xl p-6 mb-6 border border-gray-100 text-center">
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-1">Kalan Borcunuz</p>
+                <p className="text-3xl font-black text-blue-950">{formattedDebt}</p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                {predefinedAmounts.map((amt) => (
+                  <button
+                    key={`debt-${amt}`}
+                    onClick={() => handleTransaction('debt', amt)}
+                    className="p-4 rounded-2xl border transition-all duration-200 flex items-center justify-center space-x-2 font-bold shadow-sm hover:shadow-md
+                      bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:scale-[1.02]"
+                  >
+                    <CreditCard className="w-5 h-5" />
+                    <span>{amt} ₺</span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col md:flex-row items-center gap-4">
+                <input
+                  type="text"
+                  value={amount}
+                  onChange={handleAmountChange}
+                  placeholder="Farklı Tutar Giriniz"
+                  className="w-full md:flex-1 p-4 rounded-2xl bg-gray-50 border-none text-blue-950 font-bold placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+                <button
+                  onClick={() => handleTransaction('debt', Number(amount))}
+                  className="w-full md:w-auto px-8 py-4 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95"
+                >
+                  Onayla
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Hata ve Başarı Mesajları */}
           {(error || success) && (
-            <div className="transition-all duration-300">
+            <div className="mx-auto max-w-2xl transition-all duration-300 animate-fade-in">
               {error && (
-                <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-4 mb-2">
-                  <p className="text-red-400">{error}</p>
+                <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl p-4 mb-4 font-bold text-center shadow-sm">
+                  <p>{error}</p>
                 </div>
               )}
               {success && (
-                <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-4">
-                  <p className="text-green-400">{success}</p>
+                <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-4 font-bold text-center shadow-sm">
+                  <p>{success}</p>
                 </div>
               )}
             </div>
@@ -229,10 +300,9 @@ const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelec
         </div>
       </main>
 
-      <footer className="bg-gray-800 bg-opacity-30 backdrop-blur-sm border-t border-gray-700 py-4">
-        <div className="container mx-auto px-4">
-          <p className="text-center text-gray-400 text-sm">Arif Küçükeşmekaya, Ertuğrul Selim Öztürk, Şevval Çulcu</p>
-        </div>
+      <footer className="py-8 text-center text-gray-400 text-xs font-medium">
+        <p>© 2026 SeaPal Digital Finance. Protected by SeaPal Protocol.</p>
+        <p className="mt-2">Arif Küçükeşmekaya, Ertuğrul Selim Öztürk, Şevval Çulcu</p>
       </footer>
     </div>
   );
