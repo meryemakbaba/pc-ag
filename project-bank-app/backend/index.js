@@ -141,9 +141,12 @@ app.post('/api/transfer', async (req, res) => {
 });
 
 // --- YENİ: İŞLEM GEÇMİŞİNİ GETİRME ROTASI ---
+// index.js içindeki bu rotayı bul ve tam olarak bu şekilde değiştir
 app.get('/api/transactions/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
+    // findUnique içine creditDebt'in gelmesi için ekstra bir şey yapmana gerek yok 
+    // ama user objesini çektiğinden emin ol
     const user = await prisma.user.findUnique({ where: { id: userId } });
     
     if (!user) {
@@ -155,20 +158,20 @@ app.get('/api/transactions/:userId', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
     
-    const formattedTransactions = transactions.map(t => {
-      let fType = t.type.toLowerCase();
-      if (fType === 'withdraw') fType = 'withdrawal'; 
-      
-      return {
-        id: t.id.toString(),
-        type: fType,
-        amount: t.amount,
-        title: t.description || 'İşlem',
-        date: t.createdAt
-      };
-    });
+    const formattedTransactions = transactions.map(t => ({
+      id: t.id.toString(),
+      type: (t.type || 'deposit').toLowerCase(),
+      amount: t.amount || 0,
+      title: t.description || 'İşlem',
+      date: t.createdAt || new Date()
+    }));
     
-    res.json({ balance: user.balance, creditDebt: user.creditDebt, transactions: formattedTransactions });
+    // KRİTİK SATIR: Burada creditDebt'in olduğundan emin ol
+    res.json({ 
+      balance: user.balance, 
+      creditDebt: user.creditDebt, // Eğer Prisma'da adı farklıysa ona göre yaz (creditCardDebt gibi)
+      transactions: formattedTransactions 
+    });
   } catch (error) {
     res.status(500).json({ error: "İşlem geçmişi alınamadı." });
   }
@@ -208,6 +211,83 @@ app.post('/api/pay-debt', async (req, res) => {
     res.status(500).json({ error: 'Borç ödemesi başarısız.' });
   }
 });
+
+// --- YENİ: NAKİT AVANS ROTASI ---
+app.post('/api/cash-advance', async (req, res) => {
+  try {
+    const { userId, amount, title } = req.body;
+    const parsedAmount = parseFloat(amount);
+
+    // Bakiyeyi artır, borcu artır
+    const updatedUser = await prisma.user.update({
+      where: { id: parseInt(userId) },
+      data: {
+        balance: { increment: parsedAmount },
+        creditDebt: { increment: parsedAmount }
+      }
+    });
+
+    // İşlem kaydı oluştur
+    const transaction = await prisma.transaction.create({
+      data: {
+        amount: parsedAmount,
+        type: 'DEPOSIT',
+        description: title || 'Nakit Avans İşlemi',
+        userId: parseInt(userId)
+      }
+    });
+
+    // Güncel tüm işlemleri çek (Dashboard'ın yenilenmesi için)
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: parseInt(userId) },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ 
+      success: true, 
+      newBalance: updatedUser.balance, 
+      newCreditDebt: updatedUser.creditDebt,
+      transactions: transactions.map(t => ({
+        id: t.id.toString(),
+        type: t.type.toLowerCase(),
+        amount: t.amount,
+        title: t.description,
+        date: t.createdAt
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Nakit avans işlemi başarısız.' });
+  }
+});
+
+
+// --- KONTROL 1: Mevcut şifre doğruluğunu kontrol eder ---
+app.post('/api/check-password', async (req, res) => {
+  const { userId, password } = req.body;
+  const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+
+  if (user && user.password === password) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: "Mevcut şifre yanlış girildi." });
+  }
+});
+
+// --- İŞLEM 2: Şifreyi günceller ---
+app.post('/api/update-password', async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+    await prisma.user.update({
+      where: { id: parseInt(userId) },
+      data: { password: newPassword }
+    });
+    res.json({ success: true, message: "Şifreniz başarıyla güncellendi." });
+  } catch (error) {
+    res.status(500).json({ error: "Güncelleme sırasında bir hata oluştu." });
+  }
+});
+
+
 
 const PORT = 3000;
 app.listen(PORT, () => {

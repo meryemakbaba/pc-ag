@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   LogOut, BarChart3, DollarSign, CreditCard,
   RefreshCw, Send, ChevronDown, ChevronUp, LayoutGrid,
-  LockKeyhole, HelpCircle, Timer, UserPlus, Crown // Hepsini tek satırda topla
+  LockKeyhole, HelpCircle, Timer, UserPlus, Crown,
+  ArrowUpCircle, ArrowDownCircle,
+  Zap, Phone, KeyRound,  // Yeni eklenenler
 } from 'lucide-react';
 import { useBank } from '../contexts/BankContext';
 import Button from './shared/Button';
@@ -14,29 +16,54 @@ interface DashboardProps {
   onLogout: () => void;
   username: string;
   onSelectService: () => void;
+  onSelectDeposit: () => void;  // EKLE
+  onSelectWithdraw: () => void; // EKLE
+  onSelectDebt: () => void;
+  onSelectCashAdvance: () => void;
+  onSelectSecurity: () => void;
+  onSelectSupport: () => void;
   cardNumber: string;
   user: any;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, onSelectService, user }) => {
+const Dashboard: React.FC<DashboardProps> = ({ 
+  onLogout, 
+  username, 
+  onSelectService, 
+  onSelectDeposit,  
+  onSelectWithdraw, 
+  onSelectDebt,     
+  onSelectCashAdvance,
+  onSelectSupport,
+  onSelectSecurity,
+  cardNumber, 
+  user 
+}) => {
   const { balance, deposit, withdraw, transactions, creditCardDebt, payDebt, setInitialData } = useBank();
   
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(`http://localhost:3000/api/transactions/${user.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setInitialData(data.balance, data.creditDebt, data.transactions);
-        }
-      } catch (err) {
-        console.error("İşlem geçmişi çekilemedi", err);
+  const fetchData = async () => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/transactions/${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Backend'den gelen veri yapısını konsolda kontrol et:
+        console.log("Gelen Veri:", data);
+
+        // setInitialData fonksiyonuna verileri gönder
+        // Backend'den gelen objede borç 'creditDebt' olarak geliyorsa:
+        setInitialData(data.balance, data.creditDebt, data.transactions);
       }
-    };
-    if (user?.id) {
-      fetchData();
+    } catch (err) {
+      console.error("İşlem geçmişi ve borç bilgisi çekilemedi", err);
     }
-  }, [user?.id]);
+  };
+  if (user?.id) {
+    fetchData();
+  }
+}, [user?.id]);
+
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [transferCard, setTransferCard] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -52,6 +79,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'transfer', data: any } | null>(null);
   const [currentBalance, setCurrentBalance] = useState(user?.balance || 0);
+  const [isServiceMenuOpen, setIsServiceMenuOpen] = useState(false);
+
+  const serviceActions = [
+    { label: 'Para Yatır', icon: <ArrowDownCircle size={16} />, type: 'atm' },
+    { label: 'Para Çek', icon: <ArrowUpCircle size={16} />, type: 'atm' },
+    { label: 'Bakiye Sorgu', icon: <RefreshCw size={16} />, type: 'atm' },
+    { label: 'Kredi İşlemleri', icon: <CreditCard size={16} />, type: 'atm' },
+  ];
 
   // Dashboard.tsx içinde
 
@@ -122,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
   const formattedBalance = new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
-  }).format(balance); // Direkt context'ten gelen 'balance'ı kullanıyoruz
+  }).format(balance || 0); // Direkt context'ten gelen 'balance'ı kullanıyoruz
 
   // Hızlı Transfer Tetikleyici
   const triggerTransferConfirm = () => {
@@ -140,51 +175,38 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
     setIsConfirmModalOpen(true);
   };
 
-  const handleTransfer = async () => {
-    setTransferError('');
-    const parsedAmount = parseFloat(transferAmount);
-    const cardPattern = /^\d{16}$/;
+const handleTransfer = async () => {
+  setTransferError(''); // Önceki hatayı temizle
+  const parsedAmount = parseFloat(transferAmount);
 
-    if (!cardPattern.test(transferCard)) {
-      setTransferError('Lütfen geçerli bir 16 haneli kart numarası girin');
-      return;
+  try {
+    const response = await fetch('http://localhost:3000/api/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderUserId: user.id,
+        receiverCardNumber: transferCard,
+        amount: parsedAmount,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      withdraw(parsedAmount);
+      setCurrentBalance(data.newBalance);
+      setTransferCard('');
+      setTransferAmount('');
+      setIsConfirmModalOpen(false); // Başarılıysa kapat
+      alert(`Transfer başarıyla gerçekleştirildi.`);
+    } else {
+      // HATA VARSA: Modalı kapatma, sadece hata mesajını göster
+      setTransferError(data.error || 'İşlem gerçekleştirilemedi.');
     }
-
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setTransferError('Lütfen geçerli bir miktar girin');
-      return;
-    }
-
-    if (parsedAmount > balance) {
-      setTransferError('Yetersiz bakiye');
-      return;
-    }
-
-    try {
-      const response = await fetch('http://localhost:3000/api/transfer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderUserId: user.id,
-          receiverCardNumber: transferCard,
-          amount: parsedAmount,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        withdraw(parsedAmount);
-        setTransferCard('');
-        setTransferAmount('');
-        alert(`Transfer başarıyla gerçekleştirildi. Yeni bakiyeniz: ₺${data.newBalance.toFixed(2)}`);
-      } else {
-        const err = await response.json();
-        setTransferError(err.error || 'Transfer gerçekleştirilemedi.');
-      }
-    } catch (err) {
-      setTransferError('Sunucu bağlantı hatası.');
-    }
-  };
+  } catch (err) {
+    setTransferError('Sunucu bağlantı hatası.');
+  }
+};
 
   return (
     <div
@@ -203,15 +225,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          {/* 4. "Hizmet Seç" Butonu ve Dropdown Menüsü */}
+          <div className="flex items-center space-x-4 relative">
+            
 
-            <Button
-              text="Hizmet Seç"
-              onClick={onSelectService}
-              variant="secondary"
-              icon={<LayoutGrid size={16} />}
-              className="rounded-full shadow-sm"
-            />
             <button
               onClick={onLogout}
               className="p-2.5 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100"
@@ -221,6 +238,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
           </div>
         </div>
       </header>
+
+      
 
       /* main etiketini max-w-6xl yaparak alanı genişletiyoruz */
       <main className="flex-grow container mx-auto px-4 py-12 max-w-6xl">
@@ -238,11 +257,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
             <div className="relative z-10 transform transition-all duration-500 group-hover:rotate-y-10 group-hover:scale-105">
               <img
                 src="/src/assets/credit.png"
-                alt="SeaPal Card"
+                alt="Medbank Card"
                 className="w-[550px] md:w-[650px] h-auto rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.4)] border border-white/30"
               />
               <div className="absolute bottom-12 left-12 text-white font-mono text-2xl md:text-xl tracking-[0.3em] drop-shadow-2xl">
-                {cardNumber.slice(0, 16).replace(/\d{4}(?=.)/g, '$& ')}
+                {cardNumber ? cardNumber.slice(0, 16).replace(/\d{4}(?=.)/g, '$& ') : "0000 0000 0000 0000"}
               </div>
             </div>
             <div className="absolute -inset-10 bg-blue-500/15 blur-[120px] rounded-full -z-10"></div>
@@ -266,6 +285,69 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
             </div>
           </div>
         </section>
+
+        <section className="mb-12">
+
+          {/* --- YENİ: ATM HIZLI İŞLEMLER PANELİ --- */}
+    <div className="bg-gray-50 border-b border-gray-200 py-8 animate-fade-in">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-blue-600 rounded-lg text-white">
+            <LayoutGrid size={20} />
+          </div>
+          <h3 className="text-xl font-black text-blue-950 tracking-tight underline decoration-blue-500/30 decoration-4 underline-offset-4">
+            ATM Hızlı İşlemler
+          </h3>
+        </div>
+
+        {/* 2'li Grid Yapısı - Toplam 6 Buton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+          <Button 
+            text="Para Çekme" 
+            onClick={onSelectWithdraw} 
+            variant="primary" 
+            icon={<ArrowUpCircle size={20} />}
+            className="shadow-md"
+          />
+          <Button 
+    text="Para Yatırma" 
+    onClick={onSelectDeposit}  // onSelectService yerine bunu yaz
+    variant="primary" 
+    icon={<ArrowDownCircle size={20} />}
+  />
+          <Button 
+            text="Borç Ödeme" 
+            onClick={() => onSelectDebt()} 
+            variant="primary" 
+            icon={<CreditCard size={20} />}
+            className="shadow-md"
+          />
+          <Button 
+            text="Nakit Avans" 
+            onClick={onSelectCashAdvance}
+            variant="primary" 
+            icon={<Zap size={20} />}
+            className="shadow-md"
+          />
+          <Button 
+            text="Bilgi & Şifre İşlemleri" 
+            onClick={onSelectSecurity}
+            variant="primary" 
+            icon={<KeyRound size={20} />}
+            className="shadow-md"
+          />
+          <Button 
+            text="İletişim & Destek" 
+            onClick={() => onSelectSupport()} 
+            variant="primary" 
+            icon={<Phone size={20} />}
+            className="shadow-md"
+          />
+        </div>
+      </div>
+    </div>
+    </section>
+
 
         {/* --- ALT GRID: TRANSFER VE GEÇMİŞ --- */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -291,11 +373,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
                   className="w-full bg-white/10 border border-white/20 rounded-2xl px-5 py-4 text-white placeholder:text-white/40 outline-none focus:bg-white/20 transition-all"
                 />
                 <button
-                  onClick={triggerTransferConfirm}
-                  className="w-full bg-white text-blue-600 font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
-                >
-                  Transferi Başlat
-                </button>
+  onClick={triggerTransferConfirm}
+  className="w-full bg-white text-blue-600 font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
+>
+  Transferi Başlat
+</button>
+
+{/* HATA MESAJI BURAYA GELECEK: */}
+{transferError && (
+  <p className="text-red-200 text-xs mt-3 font-bold italic animate-pulse bg-red-900/20 p-2 rounded-lg border border-red-500/30">
+    *{transferError}
+  </p>
+)}
               </div>
             </div>
             {/* Hızlı Transfer kutusunun altı */}
@@ -308,13 +397,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
                 <div className="flex justify-between mb-1">
                   <span className="text-xs text-gray-500 font-bold">Toplam Borç:</span>
                   {/* .total kısmını sildik, sadece creditCardDebt kullanıyoruz */}
-                  <span className="text-sm font-black text-blue-950">₺{creditCardDebt.toFixed(2)}</span>
+                  <span className="text-sm font-black text-blue-950">₺{(creditCardDebt || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-xs text-gray-500 font-bold">Asgari Tutar:</span>
-                  {/* Asgariyi borcun %20'si olarak hesaplayabiliriz */}
-                  <span className="text-sm font-bold text-red-600">₺{(creditCardDebt * 0.2).toFixed(2)}</span>
-                </div>
+  <span className="text-xs text-gray-500 font-bold">Asgari Tutar:</span>
+  {/* Burayı (creditCardDebt * 0.2) olacak şekilde güncelliyoruz */}
+  <span className="text-sm font-bold text-red-600">
+    ₺{((creditCardDebt || 0) * 0.2).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+  </span>
+</div>
               </div>
 
               <div className="space-y-3">
@@ -379,7 +470,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
           <a href="#" className="hover:text-blue-600 transition-colors">Güvenlik</a>
           <a href="#" className="hover:text-blue-600 transition-colors">Şartlar</a>
         </div>
-        <p>© 2026 SeaPal Digital Finance. Protected by SeaPal Protocol.</p>
+        <p>© 2026 Medbank Digital Finance.</p>
       </footer>
       {isFilterModalOpen && (
         <FilterModal
@@ -417,40 +508,56 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, username, cardNumber, o
         </div>
       )}
 
-      {isConfirmModalOpen && pendingAction && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl text-center animate-scale-in">
-            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Send size="{32}" />
-            </div>
-            <h3 className="text-xl font-bold text-blue-950 mb-2">İşlem Onayı</h3>
-            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
-              <span className="font-bold text-blue-600 text-lg">₺{pendingAction.data.amount}</span> tutarındaki transfer işlemini ({pendingAction.data.card} numaralı karta) onaylıyor musunuz?
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={() => {
-                  setIsConfirmModalOpen(false);
-                  setPendingAction(null);
-                }}
-                className="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Vazgeç
-              </button>
-              <button
-                onClick={() => {
-                  handleTransfer();
-                  setIsConfirmModalOpen(false);
-                  setPendingAction(null);
-                }}
-                className="flex-[2] bg-blue-600 text-white font-bold py-3 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all active:scale-95"
-              >
-                Evet, Onayla
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Onay Modalı Kısmı */}
+{isConfirmModalOpen && pendingAction && (
+  <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl text-center animate-scale-in">
+      
+      {/* İkon: Hata varsa kırmızı ünlem, yoksa mavi uçak */}
+      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${transferError ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+        {transferError ? <HelpCircle size={32} /> : <Send size={32} />}
+      </div>
+
+      <h3 className="text-xl font-bold text-blue-950 mb-2">
+        {transferError ? 'Hata Oluştu' : 'İşlem Onayı'}
+      </h3>
+
+      {/* Mesaj Alanı */}
+      <div className="text-gray-500 text-sm mb-6 leading-relaxed px-2">
+        {transferError ? (
+          <p className="text-red-600 font-bold">{transferError}</p>
+        ) : (
+          <p>
+            <span className="font-bold text-blue-600 text-lg">₺{pendingAction.data.amount}</span> tutarındaki transfer işlemini 
+            <br />({pendingAction.data.card} numaralı karta) onaylıyor musunuz?
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-4">
+        <button
+          onClick={() => {
+            setIsConfirmModalOpen(false);
+            setPendingAction(null);
+            setTransferError(''); // Modalı kapatınca hatayı temizle
+          }}
+          className="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-gray-600"
+        >
+          {transferError ? 'Kapat' : 'Vazgeç'}
+        </button>
+        
+        {!transferError && (
+          <button
+            onClick={handleTransfer}
+            className="flex-[2] bg-blue-600 text-white font-bold py-3 rounded-2xl hover:bg-blue-700 shadow-lg"
+          >
+            Evet, Onayla
+          </button>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
 
     </div>
