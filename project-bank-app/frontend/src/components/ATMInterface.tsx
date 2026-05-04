@@ -301,8 +301,8 @@ const ATMInterface: React.FC<ATMInterfaceProps> = ({ onLogout, username, onSelec
       </main>
 
       <footer className="py-8 text-center text-gray-400 text-xs font-medium">
-        <p>© 2026 SeaPal Digital Finance. Protected by SeaPal Protocol.</p>
-        <p className="mt-2">Arif Küçükeşmekaya, Ertuğrul Selim Öztürk, Şevval Çulcu</p>
+        <p>© 2026 Medbank Digital Finance</p>
+        <p className="mt-2"></p>
       </footer>
     </div>
   );

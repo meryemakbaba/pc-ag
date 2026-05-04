@@ -1,88 +1,83 @@
-# ATM‑ve‑Online‑Bankacilik‑Uygulamasi
-# Online Bankacılık Ağı ve ATM Simülasyonu
+# 🏦 ATM Simülasyonu & Online Bankacılık Sistemi
 
-> **Ders:** Bilgisayar Ağları – Proje Final Raporu  
-> **Dönem:** 2024‑2025 Bahar  
-> **Üniversite:** T.C. Marmara Üniversitesi, Teknoloji Fakültesi, Bilgisayar Mühendisliği Bölümü
-> > **Proje Link:** http://bank-app.metricopt.com/
+Marmara Üniversitesi Bilgisayar Mühendisliği Bölümü **Bilgisayar Ağları** dersi kapsamında geliştirilmiş, istemci-sunucu mimarisine dayalı gerçek zamanlı bir bankacılık sistemi simülasyonudur. Proje, modern web teknolojilerini ve AWS bulut altyapısını bir araya getirerek uçtan uca bir finansal uygulama deneyimi sunar.
 
-## Hazırlayanlar
+## 🚀 Proje Hakkında
+Bu çalışma, bilgisayar ağları üzerindeki uygulama katmanı protokollerini (HTTP/REST), sunucu tarafı veri yönetimini ve ölçeklenebilir bulut mimarilerini uygulamalı olarak deneyimlemek amacıyla geliştirilmiştir.
 
-| İsim |
-| ---- |
-| Arif Küçükeşmekaya |
-| Şevval Çulcu |
-| Ertuğrul Selim Öztürk |
+* **Canlı Demo:** [bank-app.metricopt.com](http://bank-app.metricopt.com/)
+* **Akademik Dönem:** 2024–2025 Bahar
 
 ---
 
-## İçindekiler
-- [Projenin Amacı](#projenin-amacı)
-- [Projede Kullanılan Teknolojiler](#projede-kullanılan-teknolojiler)
-- [Projede Neler Yapıldı?](#projede-neler-yapıldı)
-- [Projenin Ağ Mimarisi ve Altyapı Kurulumu](#projenin-ağ-mimarisi-ve-altyapı-kurulumu)
-- [Sistemin Çalışma Mantığı](#sistemin-çalışma-mantığı)
-- [Sonuç ve Değerlendirme](#sonuc-ve-degerlendirme)
-- [Projenin Arayüzü](#projenin-arayuzu)
-- [Canlı Demo ve Kaynak Kod](#canli-demo-ve-kaynak-kod)
+## 🛠 Teknoloji Yığını (Tech Stack)
+
+### **Ön Yüz (Frontend)**
+* **Framework:** React 18 (Vite tabanlı)
+* **Dil:** TypeScript
+* **Styling:** Tailwind CSS & Lucide Icons
+* **Animasyon:** Framer Motion (Gerçekçi ATM deneyimi için)
+* **Durum Yönetimi:** React Context API
+
+### **Arka Yüz (Backend) & Veritabanı**
+* **Runtime:** Node.js & Express.js
+* **ORM:** Prisma ORM
+* **Veritabanı:** MySQL (AWS üzerinde yapılandırılmış)
+* **API Tasarımı:** RESTful mimari
 
 ---
 
-## Projenin Amacı
-Bu projede, bilgisayar ağları üzerinde çalışan **bankacılık sistemi** simülasyonu geliştirildi.  
+## 📁 Sistem Mimarisi ve Klasör Yapısı
+Proje, modülerliği ve sürdürülebilirliği artırmak için üç katmanlı (Three-Tier) bir mimariyi takip eder.
 
-1. **ATM Modülü:** Para çekme, para yatırma, borç ödeme  
-2. **Online Bankacılık Modülü:** Hesaplar arası transfer
+```text
+project-bank-app/
+├── backend/
+│   ├── index.js               # API endpointleri ve middleware yapılandırması
+│   └── prisma/
+│       ├── schema.prisma      # Veritabanı modelleri (User, Transaction)
+│       └── migrations/        # Veritabanı sürüm yönetimi
+└── frontend/
+    └── src/
+        ├── contexts/          # BankContext (Finansal durum ve işlem yönetimi)
+        ├── components/        # Dashboard, ATM, Transfer bileşenleri
+        ├── shared/            # Ortak kullanılan UI elementleri
+        └── utils/             # TypeScript arayüzleri ve yardımcı fonksiyonlar
+☁️ Bulut Altyapısı (AWS Entegrasyonu)
+Sistem, kurumsal düzeyde erişilebilirlik ve güvenlik için aşağıdaki AWS bileşenleri üzerinde çalışmaktadır:
 
-Her iki modül de **istemci‑sunucu mimarisi** kullanır; istekler ağ üzerinden sunucuya iletilir, işlemler merkezi olarak yürütülür.
+VPC (Virtual Private Cloud): Kamu (Public) ve Özel (Private) subnet ayrımı ile güvenli ağ katmanı.
 
----
+EC2 & ALB: Trafiği yönetmek için Application Load Balancer ve otomatik ölçeklendirme için Auto Scaling Group.
 
-## Projede Kullanılan Teknolojiler
-- **AWS VPC, Subnet, Internet/NAT Gateway**
-- **EC2** (çoklu Availability Zone)
-- **Application Load Balancer** + **Auto Scaling**
-- **AWS IAM, WAF, Shield**
-- **Amazon CloudWatch** (izleme & loglama)
-- **Python / Flask** (örnek)
+Güvenlik: AWS WAF (Web Application Firewall) ile yaygın web saldırılarına karşı aktif koruma.
 
----
+İzleme: CloudWatch entegrasyonu ile metrik takibi.
 
-## Projede Neler Yapıldı?
-1. Ağ mimarisi tasarımı ve VPC oluşturma  
-2. Public / Private subnet yapılandırması  
-3. Internet & NAT Gateway kurulumu  
-4. EC2 örneklerinin dağıtılması  
-5. Yük dengeleme ve otomatik ölçeklendirme  
-6. Güvenlik politikalarının eklenmesi  
-7. CloudWatch ile izleme ve alarm mekanizmaları  
-8. ATM ve Online Bankacılık arayüzlerinin geliştirilmesi
+🔐 Güvenlik ve İş Mantığı
+Doğrulama: Kart numarası (16 hane), TC Kimlik (11 hane) ve e-posta formatları için regex kontrolleri.
 
----
+İşlem Güvenliği: Prisma ORM kullanımı ile SQL Injection saldırılarına karşı koruma.
 
-## Projenin Ağ Mimarisi ve Altyapı Kurulumu
-Aşağıdaki şemada, uygulamanın AWS üzerindeki dağıtımı gösterilmiştir:
+Doğrulama Simülasyonu: Şifre güncelleme süreçlerinde 180 saniyelik SMS/E-posta kod doğrulama mekanizması.
 
-<!-- görsel: aws_mimari.png -->
+Bakiye Kontrolü: Yetersiz bakiye, kendi hesabına transfer engeli ve borç limiti kontrolleri.
 
-| Katman | Bileşenler | Açıklama |
-| ------ | ---------- | -------- |
-| **Kamu** | ALB, NAT Gateway | İnternetten gelen trafiğin ilk durağı |
-| **Özel** | EC2 (Uygulama), RDS/DB | Kritik servisler korumalı subnet’te |
-| **Güvenlik** | IAM, WAF, Shield | Kimlik yönetimi & saldırı koruması |
+⚙️ Kurulum ve Çalıştırma
+Backend
+cd backend
 
----
+npm install
 
-## Sistemin Çalışma Mantığı
+.env dosyasını oluşturun ve DATABASE_URL bilginizi girin.
 
-```mermaid
-sequenceDiagram
-    participant Kullanıcı
-    participant ALB
-    participant EC2
-    Kullanıcı->>ALB: HTTP(S) İsteği
-    ALB->>EC2: Yönlendirme
-    EC2-->>Kullanıcı: JSON/HTML Yanıt
+npx prisma migrate dev
 
+npm start
 
+Frontend
+cd frontend
 
+npm install
+
+npm run dev
